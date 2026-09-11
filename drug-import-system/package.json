@@ -1,0 +1,16 @@
+{
+  "name": "drug-import-system",
+  "version": "1.0.0",
+  "description": "药品目录大批量导入系统 - Excel分批校验 + 监管平台模拟上送",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node tests/run-tests.js"
+  },
+  "dependencies": {
+    "busboy": "^1.6.0",
+    "exceljs": "^4.4.0"
+  }
+}

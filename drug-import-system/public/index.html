@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>药品目录大批量导入系统</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">Rx</div>
+      <div>
+        <h1>药品目录大批量导入系统</h1>
+        <p class="sub">Excel 分批校验 · 监管平台模拟上送 · 异常行下载修正 · 任务报告</p>
+      </div>
+    </div>
+    <div class="env-badge">监管平台：<span id="envState">模拟环境</span></div>
+  </header>
+
+  <main class="container">
+    <!-- 步骤指示 -->
+    <ol class="steps">
+      <li class="step active" data-step="1"><b>1</b><span>上传 Excel</span></li>
+      <li class="step" data-step="2"><b>2</b><span>分批校验与上送</span></li>
+      <li class="step" data-step="3"><b>3</b><span>异常筛选与修正</span></li>
+      <li class="step" data-step="4"><b>4</b><span>任务报告</span></li>
+    </ol>
+
+    <!-- 上传区 -->
+    <section class="card" id="uploadCard">
+      <div class="card-hd">
+        <h2>① 上传药品目录</h2>
+        <div class="hd-actions">
+          <button class="btn ghost" id="sampleBtn">下载 5 万行演示样例</button>
+          <select id="sampleRows" title="样例行数">
+            <option value="1000">1 千行</option>
+            <option value="10000">1 万行</option>
+            <option value="50000" selected>5 万行</option>
+          </select>
+        </div>
+      </div>
+      <div class="dropzone" id="dropzone">
+        <input type="file" id="fileInput" accept=".xlsx" hidden />
+        <div class="dz-inner">
+          <div class="dz-icon">⬆</div>
+          <p class="dz-title">点击选择 或 将 .xlsx 文件拖拽到此处</p>
+          <p class="dz-hint">首行表头：药品编码 / 药品名称 / 规格 / 价格 / 厂家（支持常见别名、列顺序不限）· 最大 60MB</p>
+          <p class="dz-name" id="pickedName"></p>
+        </div>
+      </div>
+      <div class="upload-progress" id="uploadProgress" hidden>
+        <div class="up-row"><span id="upLabel">上传中…</span><span id="upPct">0%</span></div>
+        <div class="bar thin"><div class="bar-fill" id="upBar"></div></div>
+      </div>
+      <div class="alert err" id="uploadAlert" hidden></div>
+    </section>
+
+    <!-- 任务进度区 -->
+    <section class="card" id="taskCard" hidden>
+      <div class="card-hd">
+        <h2>② 导入任务 <span class="muted" id="taskFileName"></span></h2>
+        <div class="hd-actions">
+          <button class="btn ghost sm" id="newTaskBtn">＋ 新建导入</button>
+        </div>
+      </div>
+
+      <div class="stage-line">
+        <span class="stage-dot" id="stageDot"></span>
+        <span id="stageText">等待处理</span>
+        <span class="muted" id="taskMeta"></span>
+      </div>
+
+      <div class="bar main"><div class="bar-fill" id="mainBar"></div><span class="bar-pct" id="mainPct">0%</span></div>
+
+      <div class="stat-grid">
+        <div class="stat total"><div class="stat-num" id="stTotal">0</div><div class="stat-lbl">总行数</div></div>
+        <div class="stat processed"><div class="stat-num" id="stProcessed">0</div><div class="stat-lbl">已处理</div></div>
+        <div class="stat ok"><div class="stat-num" id="stAccepted">0</div><div class="stat-lbl">平台受理成功</div></div>
+        <div class="stat warn"><div class="stat-num" id="stValid">0</div><div class="stat-lbl">本地校验通过</div></div>
+        <div class="stat err"><div class="stat-num" id="stLocalErr">0</div><div class="stat-lbl">本地校验异常</div></div>
+        <div class="stat rej"><div class="stat-num" id="stPlatErr">0</div><div class="stat-lbl">平台退回</div></div>
+        <div class="stat net"><div class="stat-num" id="stNetErr">0</div><div class="stat-lbl">网络超时</div></div>
+      </div>
+
+      <div class="alert warn" id="headerWarn" hidden></div>
+      <div class="alert err" id="fatalAlert" hidden></div>
+
+      <div class="done-actions" id="doneActions" hidden>
+        <button class="btn primary" id="goErrorsBtn">查看异常行并筛选 →</button>
+        <button class="btn" id="goReportBtn">查看任务报告</button>
+        <button class="btn" id="reimportBtn">修正后重新上传</button>
+      </div>
+    </section>
+
+    <!-- 异常筛选区 -->
+    <section class="card" id="errorsCard" hidden>
+      <div class="card-hd">
+        <h2>③ 异常行筛选与修正</h2>
+        <div class="hd-actions">
+          <button class="btn primary sm" id="dlErrBtn">下载当前筛选错误行（Excel）</button>
+          <button class="btn sm" id="dlAllErrBtn">下载全部错误行</button>
+        </div>
+      </div>
+
+      <div class="filters">
+        <div class="seg" id="stageSeg">
+          <button data-val="" class="on">全部异常 <em id="cntAll">0</em></button>
+          <button data-val="local">本地校验 <em id="cntLocal">0</em></button>
+          <button data-val="platform">监管平台退回 <em id="cntPlatform">0</em></button>
+        </div>
+        <select id="fieldFilter" class="sel">
+          <option value="">全部字段</option>
+          <option>药品编码</option><option>药品名称</option>
+          <option>规格</option><option>价格</option><option>厂家</option>
+        </select>
+        <select id="codeFilter" class="sel grow"><option value="">全部错误类型</option></select>
+        <input type="search" id="qFilter" class="inp grow" placeholder="搜索行号 / 编码 / 名称 / 厂家 / 错误信息" />
+        <button class="btn ghost sm" id="clearFilterBtn">清除筛选</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="err-table">
+          <thead>
+            <tr>
+              <th class="col-row">Excel 行</th>
+              <th>药品编码</th><th>药品名称</th><th>规格</th><th>价格</th><th>厂家</th>
+              <th class="col-msg">错误说明</th>
+            </tr>
+          </thead>
+          <tbody id="errTbody"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <span class="muted" id="pageInfo"></span>
+        <div>
+          <button class="btn sm" id="prevPage">上一页</button>
+          <span id="pageNum"></span>
+          <button class="btn sm" id="nextPage">下一页</button>
+          <select id="pageSize" class="sel sm">
+            <option>20</option><option selected>50</option><option>100</option><option>200</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- 报告区 -->
+    <section class="card" id="reportCard" hidden>
+      <div class="card-hd"><h2>④ 任务报告</h2>
+        <div class="hd-actions"><button class="btn ghost sm" id="reportJsonBtn">导出报告 JSON</button></div>
+      </div>
+      <div id="reportBody"></div>
+    </section>
+
+    <!-- 历史任务 -->
+    <section class="card" id="historyCard" hidden>
+      <div class="card-hd"><h2>最近任务</h2></div>
+      <table class="hist-table">
+        <thead><tr><th>文件</th><th>状态</th><th>进度</th><th>成功/异常</th><th>耗时</th><th>创建时间</th><th></th></tr></thead>
+        <tbody id="histTbody"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="/app.js"></script>
+</body>
+</html>
