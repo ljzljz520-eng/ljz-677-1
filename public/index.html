@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>药品目录大批量导入平台</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">⚕</span>
+      <div>
+        <h1>药品目录大批量导入平台</h1>
+        <p>批量校验 · 监管平台上送模拟 · 异常行回收修正</p>
+      </div>
+    </div>
+    <a class="btn btn-ghost" href="/api/sample?rows=50000" id="sampleLink">下载 5 万行示例 Excel</a>
+  </header>
+
+  <main class="layout">
+    <!-- 左侧：上传与任务列表 -->
+    <aside class="sidebar">
+      <section class="card">
+        <h2 class="card-title">新建导入任务</h2>
+        <div id="dropzone" class="dropzone">
+          <div class="dz-icon">⬆</div>
+          <p class="dz-text">点击选择或拖拽 Excel 到此处</p>
+          <p class="dz-hint">支持 .xlsx / .xls，单文件 ≤ 60MB，≤ 5 万行</p>
+          <p class="dz-hint">必需列：药品编码、药品名称、规格、价格、厂家</p>
+          <input type="file" id="fileInput" accept=".xlsx,.xls" hidden />
+        </div>
+        <div id="uploadMsg" class="upload-msg"></div>
+        <button class="btn btn-primary btn-block" id="uploadBtn" disabled>选择文件后开始导入</button>
+        <div class="sample-row">
+          或先
+          <a href="/api/sample?rows=2000">下载 2 千行小样</a>
+          /
+          <a href="/api/sample?rows=50000">5 万行完整样例</a>
+        </div>
+      </section>
+
+      <section class="card task-list-card">
+        <h2 class="card-title">历史任务 <span class="muted" id="taskCount"></span></h2>
+        <ul class="task-list" id="taskList">
+          <li class="empty">暂无任务</li>
+        </ul>
+      </section>
+    </aside>
+
+    <!-- 右侧：任务详情 -->
+    <section class="content" id="detail">
+      <div class="placeholder" id="placeholder">
+        <div class="ph-icon">📋</div>
+        <p>上传 Excel 后在此查看导入进度、异常筛选与任务报告</p>
+      </div>
+
+      <div class="detail-body hidden" id="detailBody">
+        <!-- 概览卡片 -->
+        <div class="detail-head card">
+          <div class="detail-head-main">
+            <h2 id="dFileName">—</h2>
+            <p class="muted"><span id="dTaskId"></span> · <span id="dCreated"></span> · <span id="dSize"></span></p>
+          </div>
+          <span class="status-badge" id="dStatus">—</span>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat stat-total"><span class="stat-num" id="stTotal">0</span><span class="stat-label">总行数</span></div>
+          <div class="stat stat-ok"><span class="stat-num" id="stAccepted">0</span><span class="stat-label">平台受理</span></div>
+          <div class="stat stat-local"><span class="stat-num" id="stInvalid">0</span><span class="stat-label">本地校验异常</span></div>
+          <div class="stat stat-platform"><span class="stat-num" id="stRejected">0</span><span class="stat-label">平台驳回</span></div>
+        </div>
+
+        <!-- 进度 -->
+        <div class="card">
+          <div class="progress-head">
+            <h2 class="card-title" id="progressStage">等待开始</h2>
+            <span class="progress-pct" id="progressPct">0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-bar" id="progressBar"></div>
+            <div class="progress-bar-indeterminate hidden" id="progressBarInd"></div>
+          </div>
+          <div class="progress-meta">
+            <span>已读取：<b id="pmParsed">0</b></span>
+            <span>本地通过：<b id="pmValid">0</b></span>
+            <span>已上送：<b id="pmSubmitted">0</b></span>
+            <span>已受理：<b id="pmAccepted">0</b></span>
+          </div>
+          <div class="logs" id="logs"></div>
+        </div>
+
+        <!-- Tab 区域 -->
+        <div class="card tabs-card">
+          <div class="tabs">
+            <button class="tab active" data-tab="errors">异常筛选 <span class="tab-badge" id="errBadge">0</span></button>
+            <button class="tab" data-tab="report">任务报告</button>
+          </div>
+
+          <!-- 异常筛选 -->
+          <div class="tab-pane active" id="paneErrors">
+            <div class="filters">
+              <select id="fStage">
+                <option value="all">全部环节</option>
+                <option value="local">本地校验</option>
+                <option value="platform">监管平台</option>
+              </select>
+              <select id="fField">
+                <option value="all">全部字段</option>
+                <option value="drugCode">药品编码</option>
+                <option value="name">药品名称</option>
+                <option value="spec">规格</option>
+                <option value="price">价格</option>
+                <option value="manufacturer">厂家</option>
+              </select>
+              <select id="fCode"><option value="all">全部错误类型</option></select>
+              <input type="search" id="fKeyword" placeholder="搜索编码 / 名称 / 厂家 / 错误说明" />
+              <button class="btn btn-primary" id="fSearch">筛选</button>
+              <button class="btn btn-ghost" id="fReset">重置</button>
+              <a class="btn btn-warn ml-auto" id="exportBtn" href="#" target="_blank">⬇ 下载异常行修正表</a>
+            </div>
+
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>行号</th><th>药品编码</th><th>药品名称</th><th>规格</th>
+                    <th>价格</th><th>厂家</th><th>环节</th><th>错误说明</th>
+                  </tr>
+                </thead>
+                <tbody id="errorsBody"></tbody>
+              </table>
+            </div>
+            <div class="pagination">
+              <button class="btn btn-ghost" id="prevPage">上一页</button>
+              <span id="pageInfo">—</span>
+              <button class="btn btn-ghost" id="nextPage">下一页</button>
+            </div>
+          </div>
+
+          <!-- 任务报告 -->
+          <div class="tab-pane" id="paneReport">
+            <div id="reportBody" class="report-body">
+              <p class="muted">任务完成后生成报告…</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>

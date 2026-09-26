@@ -23,3 +23,7 @@ __pycache__/
 *.log
 .env
 .env.*
+
+# 上传与生成的示例文件（运行时产物）
+uploads/*
+!uploads/.gitkeep

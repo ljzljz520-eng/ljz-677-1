@@ -1,0 +1,16 @@
+{
+  "name": "drug-catalog-import",
+  "version": "1.0.0",
+  "description": "药品目录大批量导入与监管平台上送模拟系统",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "sample": "node scripts/gen-sample.js"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "multer": "^2.4.0"
+  }
+}
