@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>药品目录大批量导入系统</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+         background:#f0f4f8; color:#1e293b; }
+  header { background:linear-gradient(135deg,#0e7490,#155e75); color:#fff;
+           padding:18px 32px; display:flex; align-items:baseline; gap:14px;
+           box-shadow:0 2px 8px rgba(0,0,0,.15); }
+  header h1 { font-size:20px; font-weight:600; }
+  header span { font-size:12px; opacity:.75; }
+  main { max-width:1280px; margin:24px auto; padding:0 20px; display:flex;
+         flex-direction:column; gap:20px; }
+  .card { background:#fff; border-radius:12px; padding:20px 24px;
+          box-shadow:0 1px 4px rgba(15,40,60,.08); }
+  .card h2 { font-size:16px; color:#0e7490; margin-bottom:14px;
+             display:flex; align-items:center; gap:10px; }
+  .card h3 { font-size:14px; color:#334155; margin:14px 0 8px; }
+  button { background:#0e7490; color:#fff; border:none; border-radius:8px;
+           padding:8px 16px; font-size:13px; cursor:pointer; transition:.15s; }
+  button:hover { background:#155e75; }
+  button.ghost { background:#e2e8f0; color:#334155; }
+  button.ghost:hover { background:#cbd5e1; }
+  button.danger { background:#dc2626; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  input,select { border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px;
+                 font-size:13px; background:#fff; }
+  .upload-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .sample-row { margin-top:12px; font-size:13px; color:#64748b; display:flex;
+                align-items:center; gap:8px; flex-wrap:wrap; }
+  .sample-row button { padding:5px 12px; font-size:12px; }
+  .sample-row input { width:52px; padding:4px 8px; }
+  .pbar { height:10px; background:#e2e8f0; border-radius:99px; overflow:hidden; }
+  .pbar > div { height:100%; border-radius:99px; background:linear-gradient(90deg,#06b6d4,#0e7490);
+                transition:width .4s; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; color:#64748b; font-weight:500; padding:8px 10px;
+       border-bottom:2px solid #e2e8f0; white-space:nowrap; }
+  td { padding:8px 10px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+  tr:hover td { background:#f8fafc; }
+  tr.clickable { cursor:pointer; }
+  tr.selected td { background:#ecfeff; }
+  .badge { display:inline-block; padding:2px 10px; border-radius:99px;
+           font-size:12px; white-space:nowrap; }
+  .b-pending  { background:#f1f5f9; color:#64748b; }
+  .b-running  { background:#dbeafe; color:#1d4ed8; }
+  .b-completed{ background:#dcfce7; color:#15803d; }
+  .b-failed   { background:#fee2e2; color:#b91c1c; }
+  .b-local    { background:#fef9c3; color:#a16207; }
+  .b-platform { background:#ffedd5; color:#c2410c; }
+  .mini { font-size:12px; color:#64748b; }
+  .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+               gap:12px; margin-bottom:6px; }
+  .stat { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;
+          padding:12px 14px; }
+  .stat .v { font-size:22px; font-weight:700; color:#0f172a; }
+  .stat .k { font-size:12px; color:#64748b; margin-top:2px; }
+  .stat.good .v { color:#15803d; } .stat.bad .v { color:#b91c1c; }
+  .charts { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media (max-width:800px){ .charts{grid-template-columns:1fr;} }
+  .bar-row { display:flex; align-items:center; gap:8px; margin:5px 0; font-size:12px; }
+  .bar-label { width:110px; text-align:right; color:#475569; flex-shrink:0;
+               overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bar-track { flex:1; height:14px; background:#f1f5f9; border-radius:4px; overflow:hidden; }
+  .bar-fill { height:100%; background:linear-gradient(90deg,#67e8f9,#0e7490); }
+  .bar-val { width:60px; color:#334155; }
+  .filters { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:8px 0; }
+  .pager { display:flex; gap:10px; align-items:center; justify-content:flex-end;
+           margin-top:10px; font-size:13px; color:#64748b; }
+  .msg { font-size:13px; color:#0e7490; }
+  .err-text { color:#b91c1c; }
+  .dur { display:inline-block; background:#f1f5f9; border-radius:6px;
+         padding:3px 10px; margin:2px 6px 2px 0; font-size:12px; color:#475569; }
+  #uploadZone { border:2px dashed #94a3b8; border-radius:10px; padding:18px;
+                text-align:center; color:#64748b; font-size:13px; margin-bottom:12px;
+                transition:.15s; }
+  #uploadZone.drag { border-color:#0e7490; background:#ecfeff; color:#0e7490; }
+  .empty { text-align:center; color:#94a3b8; padding:24px; font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>💊 药品目录大批量导入系统</h1>
+  <span>批量校验 · 模拟监管平台上送 · 错误回执下载</span>
+</header>
+<main>
+  <!-- 上传 -->
+  <section class="card">
+    <h2>① 上传药品目录 Excel</h2>
+    <div id="uploadZone">拖拽 .xlsx 文件到此处，或点击选择文件（支持 5 万+ 行，需含表头：药品编码/药品名称/规格/价格/生产厂家）</div>
+    <input type="file" id="fileInput" accept=".xlsx,.xlsm" hidden>
+    <div class="upload-row">
+      <span id="fileName" class="mini">未选择文件</span>
+      <button id="uploadBtn" disabled>开始导入</button>
+      <span id="uploadMsg" class="msg"></span>
+    </div>
+    <div class="pbar" id="uploadBar" style="margin-top:10px" hidden><div style="width:0%"></div></div>
+    <div class="sample-row">
+      没有测试文件？生成样本数据：
+      <button class="ghost" data-rows="2000">2 千行</button>
+      <button class="ghost" data-rows="10000">1 万行</button>
+      <button class="ghost" data-rows="50000">5 万行</button>
+      异常率 <input id="errRate" value="6"> %
+      <span class="mini">（样本含编码格式错、缺名称、价格异常、重复编码、未备案厂家等典型问题）</span>
+    </div>
+  </section>
+
+  <!-- 任务列表 -->
+  <section class="card">
+    <h2>② 导入任务 <button class="ghost" id="refreshBtn" style="padding:4px 12px;font-size:12px">刷新</button></h2>
+    <table>
+      <thead><tr>
+        <th>文件 / 任务</th><th>状态</th><th>进度</th><th>总行数</th>
+        <th>本地异常</th><th>上送成功</th><th>平台驳回</th><th>创建时间</th><th></th>
+      </tr></thead>
+      <tbody id="taskBody"><tr><td colspan="9" class="empty">暂无任务</td></tr></tbody>
+    </table>
+  </section>
+
+  <!-- 任务详情 -->
+  <section class="card" id="detailCard" hidden>
+    <h2>③ 任务报告 <span id="detailTitle" class="mini"></span></h2>
+    <div class="stat-grid" id="statGrid"></div>
+    <div id="durBox" style="margin:6px 0"></div>
+    <div class="charts">
+      <div><h3>异常字段分布</h3><div id="fieldChart"></div></div>
+      <div><h3>异常类型分布</h3><div id="typeChart"></div></div>
+    </div>
+
+    <h3 style="margin-top:18px">异常明细（可筛选、可下载修正）</h3>
+    <div class="filters">
+      <select id="stageFilter">
+        <option value="">全部阶段</option>
+        <option value="local">本地校验</option>
+        <option value="platform">监管平台</option>
+      </select>
+      <select id="fieldFilter">
+        <option value="">全部字段</option>
+        <option value="drug_code">药品编码</option>
+        <option value="name">药品名称</option>
+        <option value="spec">规格</option>
+        <option value="price">价格</option>
+        <option value="manufacturer">生产厂家</option>
+      </select>
+      <input id="qInput" placeholder="搜索 编码/名称/行号" style="width:180px">
+      <button id="searchBtn">查询</button>
+      <span style="flex:1"></span>
+      <button class="ghost" id="exportAll">⬇ 全部错误</button>
+      <button class="ghost" id="exportLocal">⬇ 仅本地校验</button>
+      <button class="ghost" id="exportPlatform">⬇ 仅平台驳回</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th>行号</th><th>阶段</th><th>字段</th><th>类型</th><th>错误说明</th>
+        <th>药品编码</th><th>名称</th><th>规格</th><th>价格</th><th>厂家</th>
+      </tr></thead>
+      <tbody id="errBody"></tbody>
+    </table>
+    <div class="pager">
+      <span id="errTotal"></span>
+      <button class="ghost" id="prevPage">上一页</button>
+      <span id="pageInfo"></span>
+      <button class="ghost" id="nextPage">下一页</button>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const FIELD_ZH = {drug_code:'药品编码', name:'药品名称', spec:'规格', price:'价格', manufacturer:'生产厂家'};
+const STAGE_ZH = {local:'本地校验', platform:'监管平台'};
+const STATUS_ZH = {pending:'排队中', running:'处理中', completed:'已完成', failed:'失败'};
+const STAGE_NAME_ZH = {pending:'等待调度', parsing:'解析文件', validating:'本地校验', submitting:'平台上送', done:'完成'};
+let currentTask = null, errPage = 1, errPageSize = 20, errTotal = 0, tasksCache = [];
+
+const fmt = n => (n ?? 0).toLocaleString('zh-CN');
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+async function api(url, opts) {
+  const r = await fetch(url, opts);
+  if (!r.ok) { let t; try { t = (await r.json()).detail; } catch { t = await r.text(); } throw new Error(t || r.status); }
+  return r.json();
+}
+
+/* ---------- 上传 ---------- */
+const zone = $('#uploadZone'), fileInput = $('#fileInput');
+let pickedFile = null;
+zone.onclick = () => fileInput.click();
+zone.ondragover = e => { e.preventDefault(); zone.classList.add('drag'); };
+zone.ondragleave = () => zone.classList.remove('drag');
+zone.ondrop = e => { e.preventDefault(); zone.classList.remove('drag');
+  if (e.dataTransfer.files[0]) pickFile(e.dataTransfer.files[0]); };
+fileInput.onchange = () => fileInput.files[0] && pickFile(fileInput.files[0]);
+function pickFile(f) {
+  pickedFile = f;
+  $('#fileName').textContent = `${f.name}（${(f.size/1024/1024).toFixed(2)} MB）`;
+  $('#uploadBtn').disabled = false;
+}
+$('#uploadBtn').onclick = () => {
+  if (!pickedFile) return;
+  const fd = new FormData();
+  fd.append('file', pickedFile);
+  const xhr = new XMLHttpRequest();
+  const bar = $('#uploadBar');
+  bar.hidden = false;
+  $('#uploadBtn').disabled = true;
+  $('#uploadMsg').textContent = '上传中…';
+  xhr.upload.onprogress = e => {
+    if (e.lengthComputable) bar.firstElementChild.style.width = (e.loaded/e.total*100).toFixed(1) + '%';
+  };
+  xhr.onload = () => {
+    $('#uploadBtn').disabled = false;
+    if (xhr.status === 200) {
+      const d = JSON.parse(xhr.responseText);
+      $('#uploadMsg').textContent = `已创建任务 ${d.task_id}，后台开始处理`;
+      pickedFile = null; fileInput.value = ''; $('#fileName').textContent = '未选择文件';
+      loadTasks().then(() => selectTask(d.task_id));
+    } else {
+      let msg = xhr.responseText;
+      try { msg = JSON.parse(xhr.responseText).detail; } catch {}
+      $('#uploadMsg').innerHTML = `<span class="err-text">上传失败：${esc(msg)}</span>`;
+    }
+    setTimeout(() => { bar.hidden = true; bar.firstElementChild.style.width = '0%'; }, 800);
+  };
+  xhr.onerror = () => { $('#uploadMsg').textContent = '网络错误'; $('#uploadBtn').disabled = false; };
+  xhr.open('POST', '/api/tasks');
+  xhr.send(fd);
+};
+
+/* ---------- 样本 ---------- */
+document.querySelectorAll('.sample-row button').forEach(b => b.onclick = () => {
+  const rate = (parseFloat($('#errRate').value) || 6) / 100;
+  location.href = `/api/sample?rows=${b.dataset.rows}&error_rate=${rate}`;
+});
+
+/* ---------- 任务列表 ---------- */
+function progressOf(t) {
+  if (t.status === 'completed') return 100;
+  if (t.stage === 'submitting')
+    return t.local_valid_rows ? Math.min(99, Math.round(t.platform_submitted / t.local_valid_rows * 100)) : 0;
+  return t.total_rows ? Math.min(99, Math.round(t.processed_rows / t.total_rows * 100)) : 0;
+}
+async function loadTasks() {
+  const d = await api('/api/tasks');
+  tasksCache = d.items;
+  const tb = $('#taskBody');
+  if (!d.items.length) { tb.innerHTML = '<tr><td colspan="9" class="empty">暂无任务，请先上传文件</td></tr>'; return; }
+  tb.innerHTML = d.items.map(t => `
+    <tr class="clickable ${currentTask===t.id?'selected':''}" data-id="${t.id}">
+      <td><b>${esc(t.filename)}</b><br><span class="mini">${t.id} · ${esc(t.message||'')}</span></td>
+      <td><span class="badge b-${t.status}">${STATUS_ZH[t.status]||t.status}</span><br>
+          <span class="mini">${STAGE_NAME_ZH[t.stage]||''}</span></td>
+      <td style="min-width:130px"><div class="pbar"><div style="width:${progressOf(t)}%"></div></div>
+          <span class="mini">${progressOf(t)}%</span></td>
+      <td>${fmt(t.total_rows)}</td>
+      <td class="err-text">${fmt(t.local_error_rows)}</td>
+      <td style="color:#15803d">${fmt(t.platform_accepted)}</td>
+      <td class="err-text">${fmt(t.platform_rejected)}</td>
+      <td class="mini">${t.created_at||''}</td>
+      <td><button class="danger" style="padding:4px 10px;font-size:12px" data-del="${t.id}">删除</button></td>
+    </tr>`).join('');
+  tb.querySelectorAll('tr.clickable').forEach(tr =>
+    tr.onclick = e => { if (!e.target.dataset.del) selectTask(tr.dataset.id); });
+  tb.querySelectorAll('[data-del]').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    if (!confirm('确认删除该任务及其错误数据？')) return;
+    await api('/api/tasks/' + b.dataset.del, {method:'DELETE'});
+    if (currentTask === b.dataset.del) { currentTask = null; $('#detailCard').hidden = true; }
+    loadTasks();
+  });
+}
+$('#refreshBtn').onclick = loadTasks;
+
+/* ---------- 任务详情 / 报告 ---------- */
+async function selectTask(id) {
+  currentTask = id; errPage = 1;
+  $('#detailCard').hidden = false;
+  await Promise.all([loadReport(), loadErrors()]);
+  loadTasks();
+  $('#detailCard').scrollIntoView({behavior:'smooth', block:'start'});
+}
+function bars(el, items, labelOf) {
+  const max = Math.max(...items.map(i => i.c), 1);
+  $(el).innerHTML = items.length ? items.map(i => `
+    <div class="bar-row"><span class="bar-label" title="${esc(labelOf(i))}">${esc(labelOf(i))}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${(i.c/max*100).toFixed(1)}%"></div></div>
+      <span class="bar-val">${fmt(i.c)}</span></div>`).join('')
+    : '<div class="empty">暂无异常 🎉</div>';
+}
+async function loadReport() {
+  if (!currentTask) return;
+  const r = await api(`/api/tasks/${currentTask}/report`);
+  const t = r.task, s = r.summary;
+  $('#detailTitle').textContent = `${t.filename} · ${t.id}`;
+  $('#statGrid').innerHTML = `
+    <div class="stat"><div class="v">${fmt(s.total_rows)}</div><div class="k">总行数</div></div>
+    <div class="stat"><div class="v">${fmt(s.local_valid)}</div><div class="k">本地校验通过</div></div>
+    <div class="stat bad"><div class="v">${fmt(s.local_errors)}</div><div class="k">本地校验异常</div></div>
+    <div class="stat"><div class="v">${fmt(s.platform_submitted)}</div><div class="k">已上送平台</div></div>
+    <div class="stat good"><div class="v">${fmt(s.platform_accepted)}</div><div class="k">平台接收</div></div>
+    <div class="stat bad"><div class="v">${fmt(s.platform_rejected)}</div><div class="k">平台驳回</div></div>
+    <div class="stat ${s.success_rate>=95?'good':''}"><div class="v">${s.success_rate}%</div><div class="k">导入成功率</div></div>
+    <div class="stat"><div class="v">${fmt(s.throughput)}</div><div class="k">处理速度（行/秒）</div></div>`;
+  $('#durBox').innerHTML = Object.entries(r.durations).map(([k,v]) =>
+    `<span class="dur">⏱ ${esc(k)}：${v}s</span>`).join('') +
+    (t.status==='running' ? '<span class="dur">🔄 任务进行中…</span>' : '');
+  bars('#fieldChart', r.error_by_field, i => FIELD_ZH[i.field] || i.field);
+  bars('#typeChart', r.error_by_type, i => `${STAGE_ZH[i.stage]||''}·${i.error_type}`);
+}
+
+/* ---------- 异常明细 ---------- */
+async function loadErrors() {
+  if (!currentTask) return;
+  const p = new URLSearchParams({
+    stage: $('#stageFilter').value, field: $('#fieldFilter').value,
+    q: $('#qInput').value.trim(), page: errPage, page_size: errPageSize });
+  const d = await api(`/api/tasks/${currentTask}/errors?${p}`);
+  errTotal = d.total;
+  $('#errBody').innerHTML = d.items.length ? d.items.map(e => `
+    <tr><td>${e.row_no}</td>
+      <td><span class="badge b-${e.stage}">${STAGE_ZH[e.stage]}</span></td>
+      <td>${FIELD_ZH[e.field]||e.field}</td>
+      <td>${esc(e.error_type)}</td>
+      <td class="err-text">${esc(e.message)}</td>
+      <td>${esc(e.row_data.drug_code)}</td><td>${esc(e.row_data.name)}</td>
+      <td>${esc(e.row_data.spec)}</td><td>${esc(e.row_data.price)}</td>
+      <td>${esc(e.row_data.manufacturer)}</td></tr>`).join('')
+    : '<tr><td colspan="10" class="empty">没有符合条件的异常记录</td></tr>';
+  const pages = Math.max(1, Math.ceil(errTotal / errPageSize));
+  $('#errTotal').textContent = `共 ${fmt(errTotal)} 条`;
+  $('#pageInfo').textContent = `${errPage} / ${pages} 页`;
+  $('#prevPage').disabled = errPage <= 1;
+  $('#nextPage').disabled = errPage >= pages;
+}
+$('#searchBtn').onclick = () => { errPage = 1; loadErrors(); };
+$('#qInput').onkeydown = e => { if (e.key === 'Enter') { errPage = 1; loadErrors(); } };
+$('#prevPage').onclick = () => { errPage--; loadErrors(); };
+$('#nextPage').onclick = () => { errPage++; loadErrors(); };
+$('#exportAll').onclick      = () => location.href = `/api/tasks/${currentTask}/errors/export`;
+$('#exportLocal').onclick    = () => location.href = `/api/tasks/${currentTask}/errors/export?stage=local`;
+$('#exportPlatform').onclick = () => location.href = `/api/tasks/${currentTask}/errors/export?stage=platform`;
+
+/* ---------- 轮询 ---------- */
+setInterval(async () => {
+  await loadTasks();
+  if (currentTask) {
+    const t = tasksCache.find(x => x.id === currentTask);
+    if (t && t.status === 'running') { await loadReport(); await loadErrors(); }
+    else if (t) await loadReport();
+  }
+}, 1500);
+loadTasks();
+</script>
+</body>
+</html>
